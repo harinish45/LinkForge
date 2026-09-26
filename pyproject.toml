@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "entitylink"
+version = "0.1.0"
+description = "Scalable Business Entity Resolution System for Amazon ML Challenge 2026"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "Harinish S V" }
+]
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26.0",
+    "scipy>=1.12.0",
+    "scikit-learn>=1.4.0",
+    "pyyaml>=6.0.1",
+    "pydantic>=2.6.0",
+    "tqdm>=4.66.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

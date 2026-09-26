@@ -39,3 +39,7 @@ Thumbs.db
 output/
 logs/
 *.log
+models/*.joblib
+models/*.pkl
+*.joblib
+
