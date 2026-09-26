@@ -1,0 +1,16 @@
+# Calibrated Decision Thresholds
+# Calibrated for F0.5 (Precision-heavy: beta=0.5)
+
+decision_thresholds:
+  default_threshold: 0.62
+  conservative_high_precision_threshold: 0.75
+  permissive_recall_threshold: 0.50
+
+country_specific_thresholds:
+  US: 0.62
+  India: 0.65
+  France: 0.60
+
+margin_rules:
+  min_score_difference_second_best: 0.08
+  singleton_confidence_cutoff: 0.55
