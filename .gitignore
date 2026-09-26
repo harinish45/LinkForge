@@ -1,10 +1,10 @@
 # Large datasets (>100MB cannot be pushed to GitHub)
 *.tsv
 *.csv
-dataset/
-**/dataset/**
-data/
-**/data/**
+/dataset/
+/data/
+student_resource/dataset/
+
 
 # Python cache & environments
 __pycache__/
