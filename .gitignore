@@ -1,0 +1,41 @@
+# Large datasets (>100MB cannot be pushed to GitHub)
+*.tsv
+*.csv
+dataset/
+**/dataset/**
+data/
+**/data/**
+
+# Python cache & environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+build/
+dist/
+*.egg-info/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# macOS / OS artifacts
+.DS_Store
+__MACOSX/
+._*
+Thumbs.db
+
+# IDE & Editor artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Outputs and logs
+output/
+logs/
+*.log
