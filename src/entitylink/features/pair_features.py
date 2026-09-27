@@ -1,8 +1,14 @@
 """Pair-level feature extraction for candidate entity pairs."""
 
+import re
 from typing import Dict, List, Tuple
 from entitylink.data.schema import EntityRecord
-from entitylink.features.string_distance import levenshtein_ratio, char_ngram_jaccard, length_ratio
+from entitylink.features.string_distance import (
+    levenshtein_ratio,
+    jaro_winkler_similarity,
+    char_ngram_jaccard,
+    length_ratio,
+)
 from entitylink.features.token_features import token_jaccard, token_containment, number_overlap
 from entitylink.preprocessing.normalizer import (
     normalize_business_name,
@@ -17,6 +23,7 @@ FEATURE_NAMES: List[str] = [
     "name_token_jaccard",
     "name_token_containment",
     "name_levenshtein",
+    "name_jaro_winkler",
     "name_char_3gram",
     "name_length_ratio",
     "name_shared_tokens",
@@ -30,6 +37,7 @@ FEATURE_NAMES: List[str] = [
     "addr_length_ratio",
     # Cross-field & interaction features
     "country_match",
+    "postal_code_match",
     "combined_geom_sim",
     "strong_agreement",
     "strong_disagreement",
@@ -53,8 +61,8 @@ class PairFeatureExtractor:
         raw_name2 = record2.business_name
         name_raw_exact = 1.0 if raw_name1 == raw_name2 and raw_name1 else 0.0
 
-        norm_name1 = normalize_business_name(raw_name1)
-        norm_name2 = normalize_business_name(raw_name2)
+        norm_name1 = normalize_business_name(raw_name1, strip_legal_suffixes=True)
+        norm_name2 = normalize_business_name(raw_name2, strip_legal_suffixes=True)
         name_norm_exact = 1.0 if norm_name1 == norm_name2 and norm_name1 else 0.0
 
         toks_name1 = norm_name1.split()
@@ -62,6 +70,7 @@ class PairFeatureExtractor:
         name_tok_jaccard = token_jaccard(toks_name1, toks_name2)
         name_tok_containment = token_containment(toks_name1, toks_name2)
         name_lev = levenshtein_ratio(norm_name1, norm_name2)
+        name_jw = jaro_winkler_similarity(norm_name1, norm_name2)
         name_ngram = char_ngram_jaccard(norm_name1, norm_name2, n=3)
         name_len_rat = length_ratio(norm_name1, norm_name2)
         name_shared = float(len(set(toks_name1) & set(toks_name2)))
@@ -81,13 +90,18 @@ class PairFeatureExtractor:
         num_ratio, shared_nums = number_overlap(norm_addr1, norm_addr2)
         addr_len_rat = length_ratio(norm_addr1, norm_addr2)
 
+        # Postal code match heuristic (5 or 6 digit codes matching)
+        zips1 = set(re.findall(r"\b\d{5,6}\b", norm_addr1))
+        zips2 = set(re.findall(r"\b\d{5,6}\b", norm_addr2))
+        postal_match = 1.0 if (zips1 and zips2 and bool(zips1 & zips2)) else 0.0
+
         # 3. Country & Interactions
         country1 = normalize_country(record1.country)
         country2 = normalize_country(record2.country)
         country_match = 1.0 if country1 == country2 and country1 != "UNKNOWN" else 0.0
 
         # Geometric mean of name and address similarities
-        sim_name = (name_tok_jaccard + name_lev + name_ngram) / 3.0
+        sim_name = (name_tok_jaccard + name_lev + name_ngram + name_jw) / 4.0
         sim_addr = (addr_tok_jaccard + addr_lev + addr_ngram) / 3.0
         combined_geom = (sim_name * sim_addr) ** 0.5
 
@@ -100,6 +114,7 @@ class PairFeatureExtractor:
             "name_token_jaccard": name_tok_jaccard,
             "name_token_containment": name_tok_containment,
             "name_levenshtein": name_lev,
+            "name_jaro_winkler": name_jw,
             "name_char_3gram": name_ngram,
             "name_length_ratio": name_len_rat,
             "name_shared_tokens": name_shared,
@@ -111,6 +126,7 @@ class PairFeatureExtractor:
             "addr_shared_nums": float(shared_nums),
             "addr_length_ratio": addr_len_rat,
             "country_match": country_match,
+            "postal_code_match": postal_match,
             "combined_geom_sim": combined_geom,
             "strong_agreement": strong_agreement,
             "strong_disagreement": strong_disagreement,
@@ -125,3 +141,4 @@ class PairFeatureExtractor:
         """Extract ordered feature list according to self.feature_names."""
         f_map = self.extract_features(record1, record2)
         return [f_map[fn] for fn in self.feature_names]
+
