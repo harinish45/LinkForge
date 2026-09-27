@@ -38,8 +38,14 @@ Thumbs.db
 # Outputs and logs
 output/
 logs/
+work/
+scratch/
+submission_staging/
 *.log
 models/*.joblib
 models/*.pkl
 *.joblib
+*.parquet
+*.npy
+*.zip
 
