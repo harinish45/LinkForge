@@ -123,3 +123,50 @@ def load_ground_truth(
                 break
 
     return ground_truth
+
+def load_records_by_ids(
+    file_path: str,
+    target_ids: Set[str],
+    encoding: str = "utf-8"
+) -> Dict[str, EntityRecord]:
+    """Efficiently scan a TSV file and extract only records whose entity_id is in target_ids.
+    
+    Reads in binary chunks with byte-level ID checks to achieve high scanning speeds.
+    """
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"Source file not found at: {file_path}")
+    if not target_ids:
+        return {}
+
+    found: Dict[str, EntityRecord] = {}
+    target_bytes = {eid.encode("utf-8") for eid in target_ids}
+
+    with open(file_path, "rb") as f:
+        header = f.readline()
+        # Parse header to determine column positions
+        header_cols = [c.strip().lower() for c in header.decode("utf-8", errors="replace").split("\t")]
+        col_idx = {col: i for i, col in enumerate(header_cols)}
+        id_idx = col_idx.get("entity_id", 0)
+        name_idx = col_idx.get("business_name", 1)
+        addr_idx = col_idx.get("business_address", 2)
+        country_idx = col_idx.get("country", 3)
+
+        for line in f:
+            # Quick check: first field before tab
+            first_tab = line.find(b"\t")
+            if first_tab == -1:
+                continue
+            line_id = line[:first_tab].strip()
+            if line_id in target_bytes:
+                parts = line.decode("utf-8", errors="replace").rstrip("\r\n").split("\t")
+                eid = parts[id_idx].strip() if id_idx < len(parts) else ""
+                bname = parts[name_idx].strip() if name_idx < len(parts) else ""
+                baddr = parts[addr_idx].strip() if addr_idx < len(parts) else ""
+                bcountry = parts[country_idx].strip() if country_idx < len(parts) else ""
+
+                found[eid] = EntityRecord(eid, bname, baddr, bcountry)
+                if len(found) >= len(target_ids):
+                    break
+
+    return found
+

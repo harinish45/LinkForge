@@ -4,6 +4,7 @@ Designed to be modular so Adi's specialized blocking algorithms integrate seamle
 """
 
 from collections import defaultdict
+import re
 from typing import Dict, List, Optional, Set, Tuple
 from entitylink.data.schema import EntityRecord
 from entitylink.preprocessing.normalizer import (
@@ -14,7 +15,11 @@ from entitylink.preprocessing.normalizer import (
 
 
 def extract_blocking_keys(record: EntityRecord) -> List[str]:
-    """Generate multiple blocking keys for an entity."""
+    """Generate high-precision composite blocking keys for an entity.
+    
+    Composite blocking combines country with name tokens, prefixes, and address numbers
+    to keep candidate buckets small while maintaining high true-positive recall.
+    """
     keys: List[str] = []
     norm_name = normalize_business_name(record.business_name)
     norm_country = normalize_country(record.country)
@@ -22,20 +27,35 @@ def extract_blocking_keys(record: EntityRecord) -> List[str]:
 
     tokens = norm_name.split()
     if tokens:
-        # Key 1: country + first significant name token
-        keys.append(f"{norm_country}#name_first#{tokens[0]}")
-        # Key 2: country + first 4 chars of name
+        # Key 1: country + first significant name token (>= 3 chars)
+        if len(tokens[0]) >= 3:
+            keys.append(f"{norm_country}#name_first#{tokens[0]}")
+        # Key 2: country + first 4 chars of normalized name
         if len(norm_name) >= 4:
             keys.append(f"{norm_country}#name_prefix#{norm_name[:4]}")
         # Key 3: country + second token if available
-        if len(tokens) > 1 and len(tokens[1]) > 2:
+        if len(tokens) > 1 and len(tokens[1]) >= 3:
             keys.append(f"{norm_country}#name_sec#{tokens[1]}")
 
-    # Key 4: country + numeric tokens from address (e.g. zip/pin or building number)
-    addr_tokens = norm_addr.split()
-    addr_nums = [t for t in addr_tokens if t.isdigit() and len(t) >= 3]
-    for num in addr_nums[:2]:
-        keys.append(f"{norm_country}#num#{num}")
+    # Key 4: country + street/building number + 3-char name prefix
+    addr_nums = re.findall(r"\b\d+\b", norm_addr)
+    if addr_nums and tokens:
+        keys.append(f"{norm_country}#num_name#{addr_nums[0]}#{norm_name[:3]}")
+
+    # Key 5: country + 5 or 6 digit postal code + first token prefix
+    for num in addr_nums:
+        if len(num) in (5, 6) and tokens:
+            keys.append(f"{norm_country}#zip_name#{num}#{tokens[0][:3]}")
+            break
+
+    # Key 6: country + address numbers pair (handles multilingual name translations with same physical address)
+    if len(addr_nums) >= 2:
+        keys.append(f"{norm_country}#addr_nums#{addr_nums[0]}#{addr_nums[1]}")
+    elif len(addr_nums) == 1 and len(addr_nums[0]) >= 3:
+        common_words = {"street", "drive", "road", "avenue", "lane", "court", "floor", "shop", "suite", "unit"}
+        addr_words = [w for w in re.findall(r"[a-z]+", norm_addr) if len(w) >= 4 and w not in common_words]
+        if addr_words:
+            keys.append(f"{norm_country}#addr_num_word#{addr_nums[0]}#{addr_words[0]}")
 
     return keys
 
@@ -83,3 +103,4 @@ def generate_candidates(
         candidates[s1_id] = matched_cands
 
     return candidates
+
