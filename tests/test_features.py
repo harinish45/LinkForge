@@ -2,14 +2,23 @@
 
 import pytest
 from entitylink.data.schema import EntityRecord
-from entitylink.features.string_distance import levenshtein_ratio, char_ngram_jaccard, length_ratio
+from entitylink.features.string_distance import (
+    levenshtein_distance,
+    levenshtein_ratio,
+    jaro_winkler_similarity,
+    char_ngram_jaccard,
+    length_ratio,
+)
 from entitylink.features.token_features import token_jaccard, token_containment, number_overlap
 from entitylink.features.pair_features import PairFeatureExtractor
 
 
 def test_string_distances():
+    assert levenshtein_distance("kitten", "sitting") == 3
     assert levenshtein_ratio("acme corp", "acme corp") == 1.0
-    assert levenshtein_ratio("acme corp", "acme corporation") > 0.70
+    assert levenshtein_ratio("acme corp", "acme corporation") > 0.50
+    assert jaro_winkler_similarity("martha", "marhta") > 0.95
+    assert jaro_winkler_similarity("dwayne", "duane") > 0.80
     assert char_ngram_jaccard("google inc", "google llc", n=3) > 0.40
     assert length_ratio("short", "longer_string") == 5.0 / 13.0
 
@@ -34,5 +43,7 @@ def test_pair_feature_extractor():
     assert feats["name_norm_exact"] == 1.0  # LLC normalized
     assert feats["name_token_jaccard"] > 0.8
     assert feats["addr_levenshtein"] > 0.7
+    assert feats["name_jaro_winkler"] > 0.9
     assert feats["combined_geom_sim"] > 0.7
     assert feats["strong_disagreement"] == 0.0
+
