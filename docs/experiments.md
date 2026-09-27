@@ -94,3 +94,24 @@ so the second number is the honest upper-bound estimate for the submission.
 `models/fast_matcher.joblib` trained on 150,000 train S1 entities (141.7k matched
 / 8.3k singletons) + 100k distractor targets + 519k true targets ⇒ 2M training
 rows (309,861 positives).
+
+### Completed run (final artifacts)
+`python -u scripts/run_submission.py --test-dir data/test --work-dir output/fast_work
+--out-dir output --model models/fast_matcher.joblib --threshold 0.45
+--confidence-gap 0.30 --max-candidates 25` → **1,126 s** end to end (target bundle
+build 1,203 s on the first pass, cached afterwards in `output/fast_work/`; scoring
+1,732,544 rows at ~1,540 rows/s):
+
+| Artifact | Size | Rows |
+| --- | --- | --- |
+| `output/matching_results.tsv` | 99.3 MB | 1,732,544 + header |
+| `output/candidate_pairs.tsv` | 470.3 MB | 1,732,544 + header |
+
+- Blocking: 189,254,361 raw candidate pairs → 34,706,086 scored (top-25/entity) →
+  **5,956,339 matched pairs** written (3.44 matches/entity average).
+- Official validator (`student_resource/utils/validate_submission.py`): **PASS —
+  no blocking issues found. Safe to submit.**
+- Test suite: `python -m pytest` → 9 passed; `scripts/selftest_fast.py` → ALL PASS.
+- Honest dev expectation for this run: macro-F0.5 ≈ **0.86** (dense-universe dev),
+  i.e. the leaderboard score is bounded above by that figure; blocking recall
+  (~0.87–0.90 on dev) remains the dominant ceiling.
