@@ -78,6 +78,24 @@ def write_state(work_dir: str, state: dict) -> None:
         json.dump(state, f)
 
 
+def process_chunk(matcher: FastMatcher, chunk: List[EntityRecord], fm, fc,
+                  work_dir: str, rows_written: int, matches_found: int):
+    """Score one chunk of S1 rows, append to both outputs, checkpoint state."""
+    s1_ids = [rec.entity_id for rec in chunk]
+    res = matcher.score_chunk(chunk)
+    cand_rows, match_rows = chunk_output_rows(s1_ids, res, matcher.bundle.ids)
+    fm.write("\n".join(match_rows) + "\n")
+    fc.write("\n".join(cand_rows) + "\n")
+    fm.flush()
+    fc.flush()
+    rows_written += len(chunk)
+    matches_found += int(np.count_nonzero(res.selected))
+    write_state(work_dir, {"rows_done": rows_written,
+                           "match_bytes": os.path.getsize(fm.name),
+                           "cand_bytes": os.path.getsize(fc.name)})
+    return rows_written, matches_found
+
+
 def main():
     ap = argparse.ArgumentParser(description="Run full test inference -> submission TSVs.")
     ap.add_argument("--test-dir", default="data/test")
@@ -153,7 +171,8 @@ def main():
                 skipped += 1
                 continue
             chunk.append(rec)
-            if len(chunk) >= args.chunk:
+            room = (limit - rows_written) if limit is not None else args.chunk
+            if len(chunk) >= min(args.chunk, room):
                 rows_written, matches_found = process_chunk(
                     matcher, chunk, fm, fc, args.work_dir, rows_written, matches_found)
                 chunk = []
@@ -166,7 +185,7 @@ def main():
                           f"scored={matcher.stats['scored_pairs']:,} | matches={matches_found:,}",
                           flush=True)
                     last_log = time.time()
-        if chunk and (limit is None or rows_written < limit):
+        if chunk:
             rows_written, matches_found = process_chunk(
                 matcher, chunk, fm, fc, args.work_dir, rows_written, matches_found)
     finally:
