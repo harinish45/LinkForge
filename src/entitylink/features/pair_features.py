@@ -53,8 +53,8 @@ class PairFeatureExtractor:
         raw_name2 = record2.business_name
         name_raw_exact = 1.0 if raw_name1 == raw_name2 and raw_name1 else 0.0
 
-        norm_name1 = normalize_business_name(raw_name1)
-        norm_name2 = normalize_business_name(raw_name2)
+        norm_name1 = normalize_business_name(raw_name1, strip_legal_suffixes=True)
+        norm_name2 = normalize_business_name(raw_name2, strip_legal_suffixes=True)
         name_norm_exact = 1.0 if norm_name1 == norm_name2 and norm_name1 else 0.0
 
         toks_name1 = norm_name1.split()

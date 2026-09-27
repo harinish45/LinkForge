@@ -1,7 +1,8 @@
-"""Evaluation metrics including official F0.5 score, candidate recall, and precision."""
+"""Evaluation metrics including official F0.5 score, candidate recall, distribution stats, and error analysis."""
 
+import math
 from dataclasses import dataclass
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 
 @dataclass
@@ -19,6 +20,20 @@ class MatchEvaluationReport:
     singleton_ground_truth_count: int
     singleton_predicted_count: int
     singleton_accuracy: float
+
+
+@dataclass
+class CandidateEvaluationReport:
+    """Detailed evaluation report on candidate generation / blocking performance."""
+    candidate_recall: float
+    covered_true_matches: int
+    total_true_matches: int
+    total_candidates: int
+    avg_candidates_per_entity: float
+    median_candidates_per_entity: float
+    p95_candidates_per_entity: float
+    max_candidates_per_entity: int
+    reduction_ratio: float
 
 
 def compute_f_beta(precision: float, recall: float, beta: float = 0.5) -> float:
@@ -90,27 +105,80 @@ def evaluate_matching_predictions(
     )
 
 
-def evaluate_blocking_recall(
+def evaluate_blocking_performance(
     ground_truth: Dict[str, Set[str]],
     candidates: Dict[str, Set[str]],
-) -> Dict[str, float]:
-    """Compute recall of the blocking / candidate generation stage."""
+    total_target_records: Optional[int] = None
+) -> CandidateEvaluationReport:
+    """Compute comprehensive candidate recall, distribution stats, and reduction ratio."""
     total_true_pairs = 0
     covered_pairs = 0
-    total_candidates = 0
+    cand_counts: List[int] = []
 
     for s1, true_matches in ground_truth.items():
         total_true_pairs += len(true_matches)
         cands = candidates.get(s1, set())
-        total_candidates += len(cands)
+        cand_counts.append(len(cands))
         covered_pairs += len(true_matches & cands)
 
+    num_s1 = len(ground_truth)
+    total_candidates = sum(cand_counts)
     recall = float(covered_pairs) / total_true_pairs if total_true_pairs > 0 else 1.0
-    avg_cands = float(total_candidates) / len(ground_truth) if ground_truth else 0.0
+    avg_cands = float(total_candidates) / num_s1 if num_s1 > 0 else 0.0
 
+    if cand_counts:
+        sorted_counts = sorted(cand_counts)
+        median_cands = float(sorted_counts[len(sorted_counts) // 2])
+        p95_idx = int(math.ceil(0.95 * len(sorted_counts))) - 1
+        p95_idx = max(0, min(p95_idx, len(sorted_counts) - 1))
+        p95_cands = float(sorted_counts[p95_idx])
+        max_cands = sorted_counts[-1]
+    else:
+        median_cands = 0.0
+        p95_cands = 0.0
+        max_cands = 0
+
+    if total_target_records and total_target_records > 0 and num_s1 > 0:
+        total_search_space = num_s1 * total_target_records
+        reduction_ratio = 1.0 - (float(total_candidates) / total_search_space)
+    else:
+        reduction_ratio = 0.0
+
+    return CandidateEvaluationReport(
+        candidate_recall=recall,
+        covered_true_matches=covered_pairs,
+        total_true_matches=total_true_pairs,
+        total_candidates=total_candidates,
+        avg_candidates_per_entity=avg_cands,
+        median_candidates_per_entity=median_cands,
+        p95_candidates_per_entity=p95_cands,
+        max_candidates_per_entity=max_cands,
+        reduction_ratio=reduction_ratio,
+    )
+
+
+def evaluate_blocking_recall(
+    ground_truth: Dict[str, Set[str]],
+    candidates: Dict[str, Set[str]],
+) -> Dict[str, float]:
+    """Backward compatible wrapper for blocking recall calculation."""
+    report = evaluate_blocking_performance(ground_truth, candidates)
     return {
-        "candidate_recall": recall,
-        "covered_true_matches": covered_pairs,
-        "total_true_matches": total_true_pairs,
-        "average_candidates_per_entity": avg_cands,
+        "candidate_recall": report.candidate_recall,
+        "covered_true_matches": report.covered_true_matches,
+        "total_true_matches": report.total_true_matches,
+        "average_candidates_per_entity": report.avg_candidates_per_entity,
     }
+
+
+def analyze_blocking_errors(
+    ground_truth: Dict[str, Set[str]],
+    candidates: Dict[str, Set[str]],
+) -> List[Tuple[str, str]]:
+    """Return list of (source1_id, missed_target_id) false negative candidate pairs."""
+    missed_pairs: List[Tuple[str, str]] = []
+    for s1_id, true_matches in ground_truth.items():
+        cands = candidates.get(s1_id, set())
+        for missed in (true_matches - cands):
+            missed_pairs.append((s1_id, missed))
+    return missed_pairs

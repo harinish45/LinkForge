@@ -72,3 +72,7 @@ def write_candidate_pairs(
         required_s1_ids=required_s1_ids,
         header=CANDIDATE_HEADER,
     )
+
+
+write_candidate_pairs_tsv = write_candidate_pairs
+write_matching_results_tsv = write_matching_results
