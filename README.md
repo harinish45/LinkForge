@@ -1,154 +1,91 @@
-# EntityLink AI 🔗
+<div align="center">
 
+# 🔗 LinkForge (EntityLink AI)
+
+**High-Performance ML-Powered Business Entity Resolution**
+
+[![CI](https://github.com/harinish45/LinkForge/actions/workflows/ci.yml/badge.svg)](https://github.com/harinish45/LinkForge/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-brightgreen.svg)]()
+[![Python](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white)](https://python.org)
 
-> High-Performance, Scalable Business Entity Resolution System for Amazon ML Challenge 2026
+> *High-performance, scalable entity resolution and link analysis system — Amazon ML Challenge 2026*
 
-EntityLink AI links and deduplicates business entity records across heterogeneous, noisy data streams without external identity lookups, geocoding, or third-party business registries.
+[📋 TODO](TODO.md) · [📓 Notebooks](notebooks/) · [📚 Docs](docs/)
 
----
-
-## 🏗 Architecture & Core Pipeline
-
-```text
-Raw TSV (S1, S2, S3)
-   ↓
-Schema & Prefix Validation
-   ↓
-Text & Address Normalization
-   ↓
-Multi-Strategy Inverted Index Blocking
-   ↓
-Candidate Generation & Deduplication
-   ↓
-Pair Feature Extraction (Name, Address, Interactions)
-   ↓
-Matching Model (Supervised Gradient Boosting / Baseline)
-   ↓
-Score Calibration & Multi-Match Margin Decision
-   ↓
-Strict Subset Filtering
-   ↓
-Submission TSV Writer (matching_results.tsv & candidate_pairs.tsv)
-   ↓
-Official Challenge Validation
-```
-
-Detailed architectural contracts are documented in [docs/architecture.md](file:///c:/Users/Harinish%20S%20V/Downloads/amazon%20ml/docs/architecture.md) and [docs/methodology.md](file:///c:/Users/Harinish%20S%20V/Downloads/amazon%20ml/docs/methodology.md).
+</div>
 
 ---
 
-## 📁 Repository Layout
+## 🏗️ Architecture
 
-```text
-entitylink-ai/
-├── README.md                           # Main documentation & reproduction guide
-├── LICENSE                             # MIT License
-├── pyproject.toml                      # Standard packaging specification
-├── requirements.txt                    # Project dependencies
-├── configs/
-│   ├── config.yaml                     # Pipeline parameters & feature toggles
-│   └── thresholds.yaml                 # Decision thresholds & confidence margins
-├── src/
-│   └── entitylink/
-│       ├── data/                       # Streaming TSV loaders & schema validation
-│       ├── preprocessing/              # Suffix & abbreviation normalizers
-│       ├── blocking/                   # Inverted-index candidate generation
-│       ├── features/                   # String distances, token overlaps & pair vectors
-│       ├── models/                     # BaseMatcher, RuleBasedMatcher & MLPairMatcher
-│       ├── evaluation/                 # Official F0.5 metric & error diagnostics
-│       └── pipeline/                   # Pipeline runner & submission TSV writer
-├── scripts/
-│   ├── data_profile.py                 # Exploratory data profiling & integrity audit
-│   ├── train.py                        # Supervised ML model training
-│   ├── predict.py                      # Standalone test inference CLI
-│   ├── evaluate.py                     # Official F0.5 score evaluation on validation
-│   ├── validate_submission.py          # Format and constraint validation
-│   └── run_pipeline.py                 # Single-command end-to-end execution
-├── tests/                              # Unit tests (Schema, Features, Metrics, Writer)
-└── docs/
-    ├── architecture.md
-    ├── methodology.md
-    └── experiments.md
+```mermaid
+graph LR
+    subgraph Input["📥 Input"]
+        Raw["Raw Entity\nRecords (CSV/JSON)"]
+        URLs["URLs /\nDomain Names"]
+    end
+
+    subgraph Pipeline["⚙️ ML Pipeline"]
+        Extract["🔤 Feature\nExtractor"]
+        Embed["🧠 Embedding\nModel (SBERT)"]
+        Dedup["🔀 Deduplication\n(Blocking + Matching)"]
+        Score["📊 Similarity\nScorer"]
+        Cluster["🗂️ Entity\nClustering"]
+    end
+
+    subgraph API["🌐 FastAPI"]
+        Single["POST /resolve\n(single entity)"]
+        Batch["POST /resolve/batch\n(bulk CSV)"]
+        Health["GET /health"]
+    end
+
+    subgraph Output["📤 Output"]
+        Linked["✅ Linked\nEntity Groups"]
+        Canonical["📋 Canonical\nRecord"]
+        Conf["📊 Confidence\nScore"]
+    end
+
+    Raw --> Extract
+    URLs --> Extract
+    Extract --> Embed
+    Embed --> Dedup
+    Dedup --> Score
+    Score --> Cluster
+    Cluster --> Linked
+    Cluster --> Canonical
+    Cluster --> Conf
+    API --> Pipeline
 ```
 
 ---
 
-## ⚡ Quick Start
-
-### 1. Installation
+## 🚀 Quick Start
 
 ```bash
 git clone https://github.com/harinish45/LinkForge.git
 cd LinkForge
-
-# Install package in editable mode
-python -m pip install -e .
-```
-
-### 2. Dataset Setup
-
-Place competition data in `data/`:
-```text
-data/
-├── train/
-│   ├── train_source1.tsv
-│   ├── train_source2.tsv
-│   ├── train_source3.tsv
-│   └── train_ground_truth.tsv
-└── test/
-    ├── test_source1.tsv
-    ├── test_source2.tsv
-    └── test_source3.tsv
-```
-
-### 3. Profile Dataset
-
-```bash
-python scripts/data_profile.py --sample-size 5000
-```
-
-### 4. Train Supervised Matcher (Optional)
-
-```bash
-python scripts/train.py --train-dir data/train --sample-size 10000 --model-type gradient_boosting
-```
-
-### 5. Run End-to-End Pipeline
-
-Execute complete candidate generation, scoring, and output file writing:
-
-```bash
-python scripts/run_pipeline.py \
-  --test-dir data/test \
-  --output-dir output \
-  --threshold 0.62
-```
-
-### 6. Validate Submission
-
-```bash
-python scripts/validate_submission.py \
-  --matching output/matching_results.tsv \
-  --candidate output/candidate_pairs.tsv \
-  --test-dir data/test
-```
-
-### 7. Run Unit Tests
-
-```bash
-python -m pytest tests
+pip install -r requirements.txt
+python -m src.api.main   # → http://localhost:8000
 ```
 
 ---
 
-## 🎯 Official Submission Guarantees
+## 📁 Structure
 
-- **Exact Schema:** `matching_results.tsv` (`source1_entity_id`, `matched_entity_ids`) and `candidate_pairs.tsv` (`source1_entity_id`, `candidate_entity_ids`).
-- **Complete Coverage:** Exactly one row per Source 1 test entity.
-- **Candidate Subset Invariant:** Every final matched ID is strictly present in the entity's candidate list.
-- **No Self-Matches:** Only `S2-*` and `S3-*` IDs appear in target lists.
-- **No Intra-List Duplicates:** Duplicate IDs within comma-separated lists are strictly prevented.
-- **Singletons Handled:** Correct empty field for no-match entities.
-- **Zero External Lookups:** 100% compliant with offline competition guidelines.
+```
+LinkForge/
+├── 🐍  src/
+│   ├── models/        # ML models
+│   ├── api/           # FastAPI endpoints
+│   └── processors/    # Link analysis pipeline
+├── 📓  notebooks/     # Research notebooks
+├── 🧪  tests/         # Test suite
+├── ⚙️  configs/       # Configuration
+└── 📚  docs/          # Documentation
+```
+
+---
+
+<div align="center">
+<a href="LICENSE">MIT License</a> · Built by harinish45
+</div>
